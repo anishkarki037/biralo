@@ -57,6 +57,7 @@ class AgentLoop:
         cron_service: CronService | None = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
+        vision_model: str | None = None,
     ):
         self.bus = bus
         self.provider = provider
@@ -67,6 +68,7 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.vision_model = vision_model
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -204,11 +206,24 @@ class AgentLoop:
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(msg.channel, msg.chat_id)
         
+        # Agentic Vision Switch: Pre-process images if a vision model is configured
+        visual_context = ""
+        if msg.media and self.vision_model:
+            logger.info(f"Using vision model {self.vision_model} for visual pre-processing")
+            visual_context = await self._process_visual_context(msg.content, msg.media)
+            if visual_context:
+                # Inject visual description into the prompt
+                msg.content = f"{msg.content}\n\n[Visual Context: {visual_context}]"
+
         # Build initial messages (use get_history for LLM-formatted messages)
+        # If we have a vision model, we pass the text + the description, but NOT the raw images to the main model (unless it also supports them)
+        # If no vision model, we pass images to the main model as before.
+        passed_media = msg.media if not self.vision_model else None
+        
         messages = self.context.build_messages(
             history=session.get_history(),
             current_message=msg.content,
-            media=msg.media if msg.media else None,
+            media=passed_media,
             channel=msg.channel,
             chat_id=msg.chat_id,
         )
@@ -278,6 +293,27 @@ class AgentLoop:
             metadata=msg.metadata or {},  # Pass through for channel-specific needs (e.g. Slack thread_ts)
         )
     
+    async def _process_visual_context(self, user_query: str, media: list[str]) -> str:
+        """Process images using the vision model to extract textual context."""
+        try:
+            # Build a simple user message with the images (no Biralo system prompt)
+            # This is more compatible with specialized vision models/gateways
+            content = self.context._build_user_content(
+                f"Describe this image(s) in detail. User query: {user_query}",
+                media
+            )
+            vision_messages = [{"role": "user", "content": content}]
+            
+            response = await self.provider.chat(
+                messages=vision_messages,
+                model=self.vision_model,
+                max_tokens=2048
+            )
+            return response.content or ""
+        except Exception as e:
+            logger.error(f"Vision pre-processing failed: {e}")
+            return f"Error analyzing image: {e}"
+
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a system message (e.g., subagent announce).

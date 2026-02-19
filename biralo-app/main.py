@@ -772,6 +772,7 @@ class BiraloApp(ctk.CTk):
                 brave_api_key=config.tools.web.search.api_key if hasattr(config.tools.web, 'search') else None,
                 exec_config=config.tools.exec,
                 restrict_to_workspace=restrict,
+                vision_model=config.agents.defaults.vision_model,
             )
             
             if not force_unrestricted:
