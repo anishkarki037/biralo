@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "playwright": "^1.58.2"
+  },
+  "name": "biralo",
+  "version": "1.0.0",
+  "description": "<div align=\"center\">\r   <img src=\"biralo_logo.png\" alt=\"biralo\" width=\"500\">\r   <h1>biralo: Ultra-Lightweight Personal AI Assistant</h1>\r   <p>\r     <a href=\"https://pypi.org/project/biralo-ai/\"><img src=\"https://img.shields.io/pypi/v/biralo-ai\" alt=\"PyPI\"></a>\r     <a href=\"https://pepy.tech/project/biralo-ai\"><img src=\"https://static.pepy.tech/badge/biralo-ai\" alt=\"Downloads\"></a>\r     <img src=\"https://img.shields.io/badge/python-≥3.11-blue\" alt=\"Python\">\r     <img src=\"https://img.shields.io/badge/license-MIT-green\" alt=\"License\">\r     <a href=\"./COMMUNICATION.md\"><img src=\"https://img.shields.io/badge/Feishu-Group-E9DBFC?style=flat&logo=feishu&logoColor=white\" alt=\"Feishu\"></a>\r     <a href=\"./COMMUNICATION.md\"><img src=\"https://img.shields.io/badge/WeChat-Group-C5EAB4?style=flat&logo=wechat&logoColor=white\" alt=\"WeChat\"></a>\r     <a href=\"https://discord.gg/MnCvHqpUGB\"><img src=\"https://img.shields.io/badge/Discord-Community-5865F2?style=flat&logo=discord&logoColor=white\" alt=\"Discord\"></a>\r   </p>\r </div>",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HKUDS/nanobot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HKUDS/nanobot/issues"
+  },
+  "homepage": "https://github.com/HKUDS/nanobot#readme"
+}

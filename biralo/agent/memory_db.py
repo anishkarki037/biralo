@@ -102,6 +102,12 @@ class MemoryDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_tags_tag ON memory_tags(tag)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC)")
         
+        # Add embedding column if not exists (migration for existing databases)
+        cursor.execute("PRAGMA table_info(memories)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'embedding' not in columns:
+            cursor.execute("ALTER TABLE memories ADD COLUMN embedding BLOB")
+        
         self.conn.commit()
     
     def add_memory(
@@ -111,6 +117,7 @@ class MemoryDatabase:
         importance: int = 1,
         tags: Optional[List[str]] = None,
         source: Optional[str] = None,
+        generate_embedding: bool = True,
     ) -> int:
         """
         Add a new memory.
@@ -121,6 +128,7 @@ class MemoryDatabase:
             importance: Importance level (1-5, where 5 is highest)
             tags: Optional list of tags
             source: Optional source (e.g., 'conversation', 'daily-note')
+            generate_embedding: Whether to generate embedding for semantic search
         
         Returns:
             Memory ID
@@ -152,6 +160,21 @@ class MemoryDatabase:
                     VALUES (?, ?)
                     ON CONFLICT DO NOTHING
                 """, (memory_id, tag.lower()))
+        
+        # Generate embedding if requested
+        if generate_embedding:
+            try:
+                from sentence_transformers import SentenceTransformer
+                import pickle
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                embedding = model.encode([content])[0].tolist()
+                cursor.execute("""
+                    UPDATE memories SET embedding = ? WHERE id = ?
+                """, (pickle.dumps(embedding), memory_id))
+            except ImportError:
+                pass  # sentence-transformers not installed
+            except Exception:
+                pass
         
         self.conn.commit()
         return memory_id
@@ -507,6 +530,170 @@ class MemoryDatabase:
             lines.append("\n")
         
         return "".join(lines)
+    
+    # ============ Semantic Search Methods ============    
+    
+    def _get_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        Get embedding for text using sentence-transformers or fallback.
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            Embedding vector or None if embedding fails
+        """
+        try:
+            # Try to use sentence-transformers
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            embedding = model.encode([text])[0].tolist()
+            return embedding
+        except ImportError:
+            # Fallback to TF-IDF based similarity
+            return self._get_tfidf_fallback(text)
+        except Exception:
+            return None
+    
+    def _get_tfidf_fallback(self, text: str) -> Optional[List[float]]:
+        """
+        Fallback TF-IDF based representation for semantic similarity.
+        Uses simple word vector representation.
+        """
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            
+            # Get all memories for vectorization
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT id, content FROM memories WHERE embedding IS NULL")
+            memories = cursor.fetchall()
+            
+            if not memories:
+                return None
+            
+            # Fit TF-IDF on all memory contents
+            all_texts = [m['content'] for m in memories] + [text]
+            vectorizer = TfidfVectorizer(max_features=384)
+            tfidf_matrix = vectorizer.fit_transform(all_texts)
+            
+            # Return the embedding for the query text (last one)
+            embedding = tfidf_matrix[-1].toarray()[0].tolist()
+            return embedding
+        except ImportError:
+            return None
+        except Exception:
+            return None
+    
+    def save_embedding(self, memory_id: int, embedding: List[float]) -> None:
+        """
+        Save embedding for a memory.
+        
+        Args:
+            memory_id: Memory ID
+            embedding: Embedding vector
+        """
+        import pickle
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE memories 
+            SET embedding = ? 
+            WHERE id = ?
+        """, (pickle.dumps(embedding), memory_id))
+        self.conn.commit()
+    
+    def generate_embeddings_for_memories(self, batch_size: int = 50) -> int:
+        """
+        Generate embeddings for memories that don't have them.
+        
+        Args:
+            batch_size: Number of memories to process at once
+            
+        Returns:
+            Number of embeddings generated
+        """
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+        except ImportError:
+            return 0
+        
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, content FROM memories WHERE embedding IS NULL LIMIT ?", (batch_size,))
+        memories = cursor.fetchall()
+        
+        count = 0
+        for mem in memories:
+            try:
+                embedding = model.encode([mem['content']])[0].tolist()
+                self.save_embedding(mem['id'], embedding)
+                count += 1
+            except Exception:
+                continue
+        
+        return count
+    
+    def search_semantic(
+        self,
+        query: str,
+        limit: int = 10,
+        min_importance: int = 1,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search memories using semantic similarity.
+        
+        Args:
+            query: Natural language query
+            limit: Maximum results
+            min_importance: Minimum importance level
+            
+        Returns:
+            List of memories ranked by semantic similarity
+        """
+        # First try with embeddings
+        try:
+            from sentence_transformers import SentenceTransformer
+            import pickle
+            import numpy as np
+            
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            query_embedding = model.encode([query])[0]
+            
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT id, content, category, importance, created_at, accessed_at, access_count, embedding
+                FROM memories 
+                WHERE embedding IS NOT NULL AND importance >= ?
+            """, (min_importance,))
+            
+            memories = cursor.fetchall()
+            
+            if not memories:
+                # Fallback to keyword search
+                return self.search_memories(query, min_importance=min_importance, limit=limit)
+            
+            # Calculate similarities
+            results = []
+            for mem in memories:
+                if mem['embedding']:
+                    mem_embedding = pickle.loads(mem['embedding'])
+                    similarity = np.dot(query_embedding, mem_embedding) / (
+                        np.linalg.norm(query_embedding) * np.linalg.norm(mem_embedding) + 1e-8
+                    )
+                    result = dict(mem)
+                    result['similarity'] = float(similarity)
+                    del result['embedding']  # Remove blob for JSON serialization
+                    results.append(result)
+            
+            # Sort by similarity and limit
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            return results[:limit]
+            
+        except ImportError:
+            # Fallback to keyword search
+            return self.search_memories(query, min_importance=min_importance, limit=limit)
+        except Exception as e:
+            # Fallback to keyword search
+            return self.search_memories(query, min_importance=min_importance, limit=limit)
     
     def close(self) -> None:
         """Close database connection."""

@@ -14,8 +14,17 @@ from biralo.agent.context import ContextBuilder
 from biralo.agent.tools.registry import ToolRegistry
 from biralo.agent.tools.filesystem import ReadFileTool, WriteFileTool, EditFileTool, ListDirTool
 from biralo.agent.tools.shell import ExecTool
-from biralo.agent.tools.web import WebSearchTool, WebFetchTool
+from biralo.agent.tools.web import WebSearchTool, WebFetchTool, WebImageSearchTool
+from biralo.agent.tools.browser import BrowserTool
 from biralo.agent.tools.message import MessageTool
+from biralo.agent.tools.memory import MemoryTool
+from biralo.agent.tools.memory_stats import MemoryStatsTool
+from biralo.agent.tools.memory_insights import MemoryInsightsTool
+from biralo.agent.tools.memory_query import MemoryQueryTool
+from biralo.agent.tools.memory_summary import MemorySummaryTool
+from biralo.agent.tools.memory_semantic import MemorySemanticTool
+from biralo.agent.tools.memory_embeddings import MemoryEmbeddingsTool
+from biralo.agent.tools.self_aware import SelfAwareTool
 from biralo.agent.tools.spawn import SpawnTool
 from biralo.agent.tools.cron import CronTool
 from biralo.agent.subagent import SubagentManager
@@ -93,6 +102,7 @@ class AgentLoop:
         
         # Web tools
         self.tools.register(WebSearchTool(api_key=self.brave_api_key))
+        self.tools.register(WebImageSearchTool())
         self.tools.register(WebFetchTool())
         
         # Message tool
@@ -106,6 +116,25 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+        
+        # Memory tool (for saving/retrieving memories)
+        self.tools.register(MemoryTool(self.workspace))
+        
+        # Enhanced memory tools
+        self.tools.register(MemoryStatsTool(self.workspace))
+        self.tools.register(MemoryInsightsTool(self.workspace))
+        self.tools.register(MemoryQueryTool(self.workspace))
+        self.tools.register(MemorySummaryTool(self.workspace))
+        
+        # Semantic search tools
+        self.tools.register(MemorySemanticTool(self.workspace))
+        self.tools.register(MemoryEmbeddingsTool(self.workspace))
+        
+        # Self-awareness tool (for reflection and goal tracking)
+        self.tools.register(SelfAwareTool(self.workspace))
+        
+        # Browser tool (opens URLs in user's default browser)
+        self.tools.register(BrowserTool())
     
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""

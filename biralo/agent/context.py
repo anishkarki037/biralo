@@ -50,6 +50,9 @@ class ContextBuilder:
         if memory:
             parts.append(f"# Memory\n\n{memory}")
         
+        # Memory system awareness (agent understands its capabilities)
+        parts.append(self._get_memory_system_info())
+        
         # Skills - progressive loading
         # 1. Always-loaded skills: include full content
         always_skills = self.skills.get_always_skills()
@@ -69,6 +72,50 @@ Skills with available="false" need dependencies installed first - you can try in
 {skills_summary}""")
         
         return "\n\n---\n\n".join(parts)
+    
+    def _get_memory_system_info(self) -> str:
+        """Get information about the memory system capabilities."""
+        return """# Memory System
+
+You have access to a sophisticated memory system that stores and retrieves information across conversations.
+
+## Memory Storage
+
+Your memories are stored permanently and include:
+- **Today's notes**: Automatically appended as you work
+- **Long-term memories**: Important information consolidated over time
+- **Categorized memories**: Organized by type (user-info, project, learning, etc.)
+- **Importance levels**: Priority 1-5 (5 = most important)
+
+## Memory Retrieval Tools
+
+Use these tools to access your memories:
+
+| Tool | Purpose |
+|------|---------|
+| `memory` (save) | Store important information |
+| `memory` (search) | Find memories by keywords |
+| `memory_semantic` | Find conceptually related memories (uses AI understanding) |
+| `memory_query` | Filter memories by category/importance |
+| `memory_summary` | Get most important memories |
+| `memory_stats` | View memory statistics |
+| `memory_insights` | Get consolidation recommendations |
+
+## When to Use Each Search Method
+
+- **Keyword search** (`memory` with search): When you know exact phrases
+- **Semantic search** (`memory_semantic`): When searching conceptually ("user preferences" finds "dark mode")
+- **Category filter** (`memory_query`): When narrowing by topic
+
+## Automatic Memory Management
+
+The system automatically:
+- Saves important context you write
+- Consolidates high-importance memories into long-term storage
+- Tracks which memories you access frequently
+- Archives old but relevant memories
+
+You don't need to manually manage storage - just use the tools to save and retrieve information."""
     
     def _get_identity(self) -> str:
         """Get the core identity section."""

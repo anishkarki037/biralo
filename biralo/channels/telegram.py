@@ -196,11 +196,49 @@ class TelegramChannel(BaseChannel):
             chat_id = int(msg.chat_id)
             # Convert markdown to Telegram HTML
             html_content = _markdown_to_telegram_html(msg.content)
-            await self._app.bot.send_message(
-                chat_id=chat_id,
-                text=html_content,
-                parse_mode="HTML"
-            )
+            
+            # If media is present, send the first one as photo/document with caption
+            if msg.media:
+                for path in msg.media:
+                    try:
+                        # Handle URLs directly
+                        is_url = path.startswith(('http://', 'https://'))
+                        
+                        if not is_url:
+                            from pathlib import Path
+                            p = Path(path)
+                            if not p.exists():
+                                logger.warning(f"Media file not found: {path}")
+                                continue
+                            media_to_send = open(path, 'rb')
+                            ext = p.suffix.lower()
+                        else:
+                            media_to_send = path
+                            # Guess extension from URL for logic below
+                            ext = '.jpg' if any(x in path.lower() for x in ['.jpg', '.jpeg', '.png', '.gif']) else '.file'
+
+                        if ext in ['.jpg', '.jpeg', '.png', '.gif'] or is_url:
+                            await self._app.bot.send_photo(
+                                chat_id=chat_id,
+                                photo=media_to_send,
+                                caption=html_content if path == msg.media[0] else None,
+                                parse_mode="HTML"
+                            )
+                        else:
+                            await self._app.bot.send_document(
+                                chat_id=chat_id,
+                                document=media_to_send,
+                                caption=html_content if path == msg.media[0] else None,
+                                parse_mode="HTML"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error sending media {path}: {e}")
+            else:
+                await self._app.bot.send_message(
+                    chat_id=chat_id,
+                    text=html_content,
+                    parse_mode="HTML"
+                )
         except ValueError:
             logger.error(f"Invalid chat_id: {msg.chat_id}")
         except Exception as e:

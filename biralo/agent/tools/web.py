@@ -84,6 +84,42 @@ class WebSearchTool(Tool):
             return f"Error: {e}"
 
 
+class WebImageSearchTool(Tool):
+    """Search the web for images using DuckDuckGo."""
+
+    name = "web_image_search"
+    description = "Search for images on the web. Returns image titles and URLs."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Image search query"},
+            "count": {"type": "integer", "description": "Results (1-10)", "minimum": 1, "maximum": 10}
+        },
+        "required": ["query"]
+    }
+
+    def __init__(self, max_results: int = 5):
+        self.max_results = max_results
+
+    async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
+        try:
+            n = min(max(count or self.max_results, 1), 10)
+            ddgs = DDGS()
+            results = ddgs.images(query, max_results=n)
+
+            if not results:
+                return f"No image results for: {query}"
+
+            lines = [f"Image results for: {query}\n"]
+            for i, item in enumerate(results, 1):
+                title = item.get("title", "")
+                url = item.get("image", "")
+                lines.append(f"{i}. {title}\n   {url}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Error: {e}"
+
+
 class WebFetchTool(Tool):
     """Fetch and extract content from a URL using Readability."""
     

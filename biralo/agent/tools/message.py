@@ -52,6 +52,11 @@ class MessageTool(Tool):
                 "chat_id": {
                     "type": "string",
                     "description": "Optional: target chat/user ID"
+                },
+                "media": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: list of local file paths to media files"
                 }
             },
             "required": ["content"]
@@ -76,7 +81,8 @@ class MessageTool(Tool):
         msg = OutboundMessage(
             channel=channel,
             chat_id=chat_id,
-            content=content
+            content=content,
+            media=kwargs.get("media", [])
         )
         
         try:

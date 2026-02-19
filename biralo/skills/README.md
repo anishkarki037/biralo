@@ -17,8 +17,13 @@ The skill format and metadata structure follow OpenClaw's conventions to maintai
 
 | Skill | Description |
 |-------|-------------|
+| `browser` | Automate web browser interactions for scraping and testing |
+| `cron` | Schedule reminders and recurring tasks |
 | `github` | Interact with GitHub using the `gh` CLI |
-| `weather` | Get weather info using wttr.in and Open-Meteo |
+| `memory` | Save and retrieve memories |
+| `research-and-act` | Research topics and take action based on findings |
+| `self-awareness` | Self-reflection, goal tracking, autonomous learning |
+| `skill-creator` | Create new skills |
 | `summarize` | Summarize URLs, files, and YouTube videos |
 | `tmux` | Remote-control tmux sessions |
-| `skill-creator` | Create new skills |
+| `weather` | Get weather info using wttr.in and Open-Meteo |
